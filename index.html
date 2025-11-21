@@ -1,0 +1,872 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>오티에르 방배 안전마스터</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;700;900&display=swap');
+        
+        body {
+            font-family: 'Noto Sans KR', sans-serif;
+            background-color: #ffffff;
+            -webkit-user-select: none;
+            user-select: none;
+            color: #1e293b;
+        }
+
+        /* Game Container */
+        .game-container {
+            position: relative;
+            width: 100%;
+            height: 600px;
+            border-radius: 1rem;
+            overflow: hidden;
+            background-color: #f1f5f9;
+            box-shadow: inset 0 0 50px rgba(0,0,0,0.1);
+            border: 2px solid #e2e8f0;
+        }
+
+        .scene-background {
+            position: absolute;
+            inset: 0;
+            background-size: cover;
+            background-position: center;
+            transition: opacity 0.5s ease-in-out;
+            opacity: 0; 
+        }
+        .scene-background.loaded {
+            opacity: 1;
+        }
+
+        /* Marker Styles */
+        .marker {
+            position: absolute;
+            width: 50px;
+            height: 50px;
+            background-color: #ef4444; /* Red-500 */
+            color: white;
+            border-radius: 50%;
+            border: 3px solid white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 900;
+            font-size: 1.5rem;
+            cursor: pointer;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.4);
+            animation: bounce-in 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards, pulse-red 2s infinite;
+            transition: all 0.2s;
+            z-index: 20;
+            transform: translate(-50%, -50%);
+        }
+
+        .marker:hover {
+            transform: translate(-50%, -50%) scale(1.2);
+            background-color: #dc2626;
+            z-index: 30;
+        }
+
+        .marker.solved {
+            background-color: #10b981; /* Emerald-500 */
+            animation: none;
+            box-shadow: 0 0 15px #10b981;
+            opacity: 0.9;
+            color: white;
+        }
+
+        /* Animations */
+        @keyframes pulse-red {
+            0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); }
+            70% { box-shadow: 0 0 0 15px rgba(239, 68, 68, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+        }
+
+        @keyframes bounce-in {
+            0% { transform: translate(-50%, -50%) scale(0); opacity: 0; }
+            100% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+        }
+        
+        .shake {
+            animation: shake 0.5s cubic-bezier(.36,.07,.19,.97) both;
+        }
+        @keyframes shake {
+            10%, 90% { transform: translate3d(-1px, 0, 0); }
+            20%, 80% { transform: translate3d(2px, 0, 0); }
+            30%, 50%, 70% { transform: translate3d(-4px, 0, 0); }
+            40%, 60% { transform: translate3d(4px, 0, 0); }
+        }
+
+        .chapter-card {
+            transition: all 0.3s ease;
+        }
+        .chapter-card:hover {
+            transform: translateY(-8px);
+            box-shadow: 0 15px 30px -5px rgba(0, 0, 0, 0.1);
+        }
+        
+        .chapter-thumbnail {
+            width: 100%;
+            height: 160px;
+            object-fit: cover;
+            transition: transform 0.5s ease;
+        }
+        .chapter-card:hover .chapter-thumbnail {
+            transform: scale(1.05);
+        }
+
+        .modal { transition: opacity 0.2s ease; }
+        body.modal-active { overflow: hidden; }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #f1f1f1; }
+        ::-webkit-scrollbar-thumb { background: #94a3b8; border-radius: 4px; }
+    </style>
+</head>
+<body class="bg-white">
+
+    <!-- Header -->
+    <header class="bg-white border-b-4 border-red-600 p-4 sticky top-0 z-50 shadow-lg">
+        <div class="max-w-7xl mx-auto flex justify-between items-center">
+            <div class="flex items-center cursor-pointer group" onclick="location.reload()">
+                <div class="bg-red-600 p-2 rounded-lg mr-3 group-hover:bg-red-500 transition shadow-md">
+                    <i class="fas fa-hard-hat text-2xl text-white"></i>
+                </div>
+                <div>
+                    <h1 class="text-2xl md:text-3xl font-black tracking-tight text-slate-800">오티에르 방배 안전마스터</h1>
+                    <!-- Subtitle removed for cleaner look -->
+                </div>
+            </div>
+            <div class="bg-slate-100 rounded-lg px-4 py-2 border border-slate-200 flex items-center shadow-sm">
+                <span class="text-xs text-slate-500 mr-2 uppercase font-bold tracking-wider">Pass</span>
+                <span class="text-xl font-black text-green-600"><span id="total-progress">0</span><span class="text-slate-400 text-sm mx-1">/</span>18</span>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="max-w-7xl mx-auto p-4 md:p-6">
+        
+        <!-- Intro Section -->
+        <div id="intro-section" class="mb-8 bg-white rounded-2xl shadow-lg overflow-hidden border border-slate-200">
+            <div class="p-12 text-center relative overflow-hidden bg-gradient-to-b from-slate-50 to-white">
+                <div class="absolute inset-0 opacity-5" style="background-image: radial-gradient(#000000 1px, transparent 1px); background-size: 20px 20px;"></div>
+                <!-- Slogan -->
+                <h2 class="text-3xl md:text-5xl font-black text-slate-800 relative z-10 leading-tight break-keep mb-2">
+                    현장 속 <span class="text-red-600 inline-block transform hover:scale-110 transition-transform duration-200">'?'</span>를 찾아<br>
+                    핵심 지적사항을 해결하세요
+                </h2>
+            </div>
+            <div id="preload-status" class="bg-slate-50 px-6 py-2 border-t border-slate-200 flex items-center justify-center text-xs text-slate-500 transition-all duration-500">
+                <i class="fas fa-sync fa-spin mr-2 text-blue-500"></i>
+                <span>현장 데이터 로딩 중... (<span id="preload-count">0</span>/18)</span>
+            </div>
+        </div>
+
+        <!-- Chapter Grid -->
+        <div id="chapter-grid" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-6">
+            <!-- Chapters injected by JS -->
+        </div>
+
+        <!-- Hall of Fame Trigger Card -->
+        <div class="mt-12 flex justify-center">
+            <div onclick="showHallOfFame()" class="bg-white rounded-2xl shadow-xl cursor-pointer hover:scale-105 transition-transform duration-300 max-w-md w-full border-2 border-yellow-400 p-1">
+                <div class="bg-yellow-50 rounded-xl p-6 flex items-center justify-between">
+                    <div class="flex items-center">
+                        <div class="w-14 h-14 bg-yellow-500 rounded-full flex items-center justify-center text-white shadow-lg mr-4">
+                            <i class="fas fa-trophy text-2xl"></i>
+                        </div>
+                        <div class="text-left">
+                            <h3 class="font-bold text-yellow-800 text-lg">명예의 전당</h3>
+                            <p class="text-xs text-yellow-600">모든 챕터를 통과한 마스터 목록</p>
+                        </div>
+                    </div>
+                    <i class="fas fa-chevron-right text-yellow-400"></i>
+                </div>
+            </div>
+        </div>
+
+        <!-- Hall of Fame Section -->
+        <div id="hall-of-fame" class="hidden mt-8 animate-fade-in-up pb-20">
+            <div class="bg-white p-1 rounded-2xl shadow-2xl max-w-4xl mx-auto border border-slate-200">
+                <div class="bg-slate-50 rounded-xl p-8 text-center relative overflow-hidden">
+                    
+                    <div class="flex justify-between items-start mb-6 relative z-10">
+                         <div class="w-8"></div>
+                         <h2 class="text-3xl font-black text-slate-800"><i class="fas fa-crown text-yellow-500 mr-3"></i>명예의 전당</h2>
+                         <button onclick="hideHallOfFame()" class="text-slate-400 hover:text-slate-600 transition"><i class="fas fa-times text-2xl"></i></button>
+                    </div>
+
+                    <div id="congrats-section" class="hidden mb-8 p-6 bg-green-50 rounded-xl border border-green-200 relative z-10">
+                        <p class="text-green-700 mb-4 text-lg font-bold"><i class="fas fa-check-circle mr-2"></i>축하합니다! 모든 챕터를 마스터하셨습니다.</p>
+                        <div class="flex gap-2 max-w-md mx-auto">
+                            <input type="text" id="user-name" placeholder="이름 입력" class="flex-1 bg-white border border-slate-300 text-slate-800 p-3 rounded-lg focus:outline-none focus:border-green-500 text-center font-bold shadow-sm">
+                            <button onclick="saveToHallOfFame()" class="bg-green-600 hover:bg-green-500 text-white font-bold px-6 rounded-lg transition shadow-lg hover:shadow-green-500/20">등록</button>
+                        </div>
+                    </div>
+                    
+                    <div class="max-w-2xl mx-auto relative z-10">
+                        <div class="bg-white rounded-lg border border-slate-200 overflow-hidden shadow-inner">
+                            <div class="bg-slate-100 px-4 py-3 border-b border-slate-200 text-left text-xs font-bold text-slate-500 uppercase flex justify-between">
+                                <span>마스터 목록</span>
+                                <span>DATE</span>
+                            </div>
+                            <div id="fame-list" class="max-h-80 overflow-y-auto text-left divide-y divide-slate-100"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- Game Screen Overlay -->
+    <div id="game-screen" class="fixed inset-0 bg-slate-900/90 z-50 hidden flex flex-col items-center justify-center p-4 backdrop-blur-sm">
+        <div class="w-full max-w-5xl bg-white rounded-2xl shadow-2xl overflow-hidden flex flex-col h-[90vh] transform transition-all duration-300">
+            
+            <!-- Game Header -->
+            <div class="bg-white border-b border-slate-200 p-4 flex justify-between items-center shrink-0 z-20">
+                <div class="flex items-center">
+                    <button onclick="closeGame()" class="w-10 h-10 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 hover:text-slate-900 flex items-center justify-center mr-4 transition">
+                        <i class="fas fa-arrow-left"></i>
+                    </button>
+                    <div>
+                        <h2 id="game-title" class="text-lg md:text-xl font-black text-slate-800 tracking-tight">챕터 제목</h2>
+                        <p class="text-xs text-slate-500 font-medium">붉은색 '?' 마크를 눌러 문제를 해결하세요</p>
+                    </div>
+                </div>
+                <div class="flex flex-col items-end">
+                    <div class="flex items-center space-x-2 mb-1">
+                        <span class="text-xs font-bold text-slate-400 uppercase">Progress</span>
+                        <span id="game-progress-text" class="text-sm font-black text-blue-600">0/0</span>
+                    </div>
+                    <div class="w-40 h-2 bg-slate-100 rounded-full overflow-hidden">
+                        <div id="game-progress-bar" class="h-full bg-blue-500 w-0 transition-all duration-300 shadow-[0_0_10px_rgba(59,130,246,0.5)]"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Game Content Area -->
+            <div class="flex-1 overflow-y-auto bg-slate-50 p-4 relative flex flex-col items-center justify-center">
+                
+                <!-- Scene Container (Image) -->
+                <div id="scene-container" class="game-container mb-6 group border-4 border-white shadow-xl w-full h-full max-h-[650px]">
+                    <div id="scene-bg" class="scene-background bg-slate-200"></div>
+                    <!-- Loading Indicator -->
+                    <div id="scene-loading" class="absolute inset-0 flex items-center justify-center bg-slate-100 z-10">
+                        <div class="flex flex-col items-center animate-pulse text-slate-400">
+                            <i class="fas fa-image text-5xl mb-4"></i>
+                            <span class="text-sm font-bold">현장 이미지 준비 중...</span>
+                        </div>
+                    </div>
+                    <div id="marker-layer" class="absolute inset-0"></div>
+                </div>
+
+                <!-- Question Card -->
+                <div id="question-card" class="hidden w-full max-w-3xl bg-white p-10 rounded-2xl shadow-2xl border border-slate-100 transform transition-all duration-300">
+                    <div class="flex justify-between items-start mb-8">
+                        <span class="bg-blue-600 text-white text-sm font-black px-3 py-1 rounded uppercase shadow-sm">문제 <span id="q-num">1</span></span>
+                        <button onclick="hideQuestion()" class="text-slate-400 hover:text-slate-600 transition"><i class="fas fa-times text-2xl"></i></button>
+                    </div>
+                    <h3 id="q-text" class="text-2xl font-bold mb-10 text-slate-800 leading-relaxed word-keep-all text-center">문제 텍스트</h3>
+                    <div id="q-content" class="space-y-4 max-w-xl mx-auto"></div>
+                    <div id="q-feedback" class="mt-8 hidden p-4 rounded-lg text-lg font-bold flex items-center justify-center"></div>
+                </div>
+
+                <!-- Fail Modal -->
+                <div id="fail-modal" class="absolute inset-0 bg-slate-900/95 z-50 hidden flex flex-col items-center justify-center backdrop-blur-md">
+                    <div class="bg-white p-10 rounded-3xl max-w-md text-center shadow-2xl border-t-8 border-red-600 transform scale-100">
+                        <div class="w-24 h-24 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-6">
+                            <i class="fas fa-times text-6xl text-red-500"></i>
+                        </div>
+                        <h3 class="text-3xl font-black text-slate-800 mb-3">작업 실패!</h3>
+                        <p class="text-slate-500 mb-8 text-base">안전수칙 위반으로 사고가 발생했습니다.<br>처음부터 다시 도전하세요.</p>
+                        <button onclick="closeGame()" class="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-4 px-6 rounded-xl shadow-lg transition hover:shadow-red-600/20 text-lg">
+                            현장 철수 (메인으로)
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Chapter Complete Message -->
+                <div id="chapter-complete" class="hidden absolute inset-0 bg-slate-900/95 z-50 flex flex-col items-center justify-center backdrop-blur-md">
+                    <div class="bg-white p-10 rounded-3xl max-w-md text-center shadow-2xl border-t-8 border-green-500">
+                        <div class="w-24 h-24 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
+                            <i class="fas fa-check text-6xl text-green-500"></i>
+                        </div>
+                        <h3 class="text-3xl font-black text-slate-800 mb-3">안전 점검 완료!</h3>
+                        <p class="text-slate-500 mb-8 text-base">해당 공종의 위험요인을 모두 제거했습니다.</p>
+                        <button onclick="closeGame()" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-4 px-6 rounded-xl shadow-lg transition hover:shadow-green-600/20 text-lg">
+                            다음 현장으로 이동
+                        </button>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- Random Number Generator (Seeded) ---
+        function mulberry32(a) {
+            return function() {
+                var t = a += 0x6D2B79F5;
+                t = Math.imul(t ^ t >>> 15, t | 1);
+                t ^= t + Math.imul(t ^ t >>> 7, t | 61);
+                return ((t ^ t >>> 14) >>> 0) / 4294967296;
+            }
+        }
+
+        // --- Game Data ---
+        const chapters = [
+            { 
+                id: 1, title: "1. 지붕공사", 
+                prompt: "construction worker repairing roof panels industrial building blue sky danger photorealistic", seed: 101, color: "bg-blue-500", imgSrc: null,
+                questions: [
+                    { q: "지붕 위 이동 시 채광창(썬라이트) 파손으로 인한 추락을 막기 위한 조치는?", type: "choice", options: ["채광창 덮개 설치", "추락방호망 설치", "안전대 부착설비 설치", "위험표지판 부착"], a: 0 },
+                    { q: "지붕 가장자리 작업 시 추락 방지를 위한 필수 시설물은?", type: "choice", options: ["안전난간", "안전방망", "생명줄", "접근금지표지"], a: 0 },
+                    { q: "지붕 작업 필수 개인보호구 조합으로 옳은 것은?", type: "choice", options: ["안전대 + 안전모", "안전모 + 안전화", "안전대 + 각반", "안전모 + 보안경"], a: 0 },
+                    { q: "강도가 약한 슬레이트 지붕 위 작업 시 하중 분산을 위해 폭 OOcm 이상의 발판을 설치해야 한다. (숫자만 입력)", type: "input", answer: "30" },
+                    { q: "지붕 위로 자재를 올릴 때 가장 안전한 방법은?", type: "choice", options: ["승강설비나 달줄 사용", "작업자가 직접 운반", "등짐 지고 이동", "던져서 올림"], a: 0 }
+                ]
+            },
+            { 
+                id: 2, title: "2. 단부/개구부", 
+                prompt: "construction site floor with square hole opening danger elevator shaft photorealistic", seed: 202, color: "bg-red-500", imgSrc: null,
+                questions: [
+                    { q: "안전난간은 구조적으로 가장 취약한 지점에서 OOOkg 이상의 하중에 견딜 수 있어야 한다. (숫자만 입력)", type: "input", answer: "100" },
+                    { q: "안전난간 발끝막이판의 높이는 바닥에서 OOcm 이상이어야 한다. (숫자만 입력)", type: "input", answer: "10" },
+                    { q: "안전난간 기둥의 설치 간격은 O.Om를 초과하지 않아야 한다. (소수점 포함 숫자)", type: "input", answer: "2.0" }, 
+                    { q: "개구부 덮개는 근로자, 장비 등 하중의 O배 이상을 견딜 수 있어야 한다. (숫자만 입력)", type: "input", answer: "2" },
+                    { q: "개구부 덮개를 설치할 때 준수해야 할 사항으로 가장 중요한 것은?", type: "choice", options: ["뒤집히거나 떨어지지 않도록 고정", "눈에 잘 띄는 색으로 도색", "위험 경고표지 부착", "쉽게 열 수 있도록 손잡이 설치"], a: 0 },
+                    { q: "엘리베이터 개구부용 난간대는 몇 단 이상 설치해야 하는가?", type: "choice", options: ["2단", "1단", "3단", "임의 설치"], a: 0 },
+                    { q: "난간 설치가 곤란한 단부 작업 시 필수 안전 조치는?", type: "choice", options: ["안전대 착용 및 부착설비", "2인 1조로 작업", "작업지휘자 배치", "안전교육 실시후 작업"], a: 0 }
+                ]
+            },
+            { 
+                id: 3, title: "3. 비계/작업발판", 
+                prompt: "construction scaffolding exterior building steel pipes safety photorealistic", seed: 303, color: "bg-orange-500", imgSrc: null,
+                questions: [
+                    { q: "연약지반에 비계 기둥 설치 시 침하 방지를 위해 두께 OOmm 이상의 깔목을 사용해야 한다. (숫자만 입력)", type: "input", answer: "45" },
+                    { q: "비계 기둥 간격은 띠장 방향 1.8m, 장선 방향 O.Om 이하여야 한다. (소수점 포함)", type: "input", answer: "1.5" },
+                    { q: "강관 비계의 벽이음 설치 간격은 수직, 수평방향 Om 이내마다 설치한다. (숫자만 입력)", type: "input", answer: "5" },
+                    { q: "기둥 간격 10m 이내마다 40~60도로 교차하도록 OO를 설치해야 한다.", type: "choice", options: ["가새", "벽이음", "버팀대", "받침철물"], a: 0 },
+                    { q: "작업발판의 폭은 OOcm 이상이어야 한다. (숫자만 입력)", type: "input", answer: "40" },
+                    { q: "작업발판 재료 간의 틈은 Ocm 이하로 해야 한다. (숫자만 입력)", type: "input", answer: "3" },
+                    { q: "시스템 비계의 상부 난간대 높이는 O.Om 이상이어야 한다. (소수점 포함)", type: "input", answer: "0.9" }
+                ]
+            },
+            { id: 4, title: "4. 사다리", 
+              prompt: "A-frame ladder standing on construction floor worker safety photorealistic", seed: 404, color: "bg-yellow-500", imgSrc: null,
+              questions: [
+                { q: "이동식 사다리의 주된 사용 용도는?", type: "choice", options: ["이동 통로", "작업 발판", "화물 운반", "휴식 공간"], a: 0 },
+                { q: "A형 사다리 사용 시 전도 방지 조치는?", type: "choice", options: ["아웃트리거 설치 및 2인 1조", "단독 작업으로 신속 처리", "사다리 하부 고정", "안전대 착용"], a: 0 },
+                { q: "사다리 작업 시 필수 착용 보호구는?", type: "choice", options: ["안전모", "안전화", "각반", "보안경"], a: 0 },
+                { q: "사다리 최상부 발판에서 작업은?", type: "choice", options: ["금지된다", "가능하다", "안전대 착용 시 가능", "2인 1조 시 가능"], a: 0 },
+                { q: "사다리 바닥은 어떤 상태여야 하는가?", type: "choice", options: ["평탄하고 견고하며 미끄럼 없는 곳", "경사가 약간 있는 곳", "모래나 자갈 바닥", "습기가 있는 바닥"], a: 0 },
+                { q: "고정식 사다리 길이가 10m 이상일 때 5m마다 설치해야 하는 것은?", type: "choice", options: ["계단참", "등받이울", "안전블록", "추락방지대"], a: 0 }
+            ]},
+            { id: 5, title: "5. 철골공사", 
+              prompt: "steel beam structure construction skeleton sky background photorealistic", seed: 505, color: "bg-gray-600", imgSrc: null,
+              questions: [
+                { q: "철골 보 위 이동 시 안전대 죔줄을 어디에 체결해야 하는가?", type: "choice", options: ["설치된 구명줄", "철골 기둥", "트러스트", "가새"], a: 0 },
+                { q: "철골 인양 시 자재 낙하 방지를 위한 줄걸이 방법은?", type: "choice", options: ["2줄 걸이", "1줄 걸이", "3줄 걸이", "체인 사용"], a: 0 },
+                { q: "철골 작업 중지 기준이 되는 기상 상황은?", type: "choice", options: ["강풍, 폭우, 폭설", "흐린 날씨", "약한 바람", "더운 날씨"], a: 0 },
+                { q: "철골 하부 낙하물 사고 예방 시설은?", type: "choice", options: ["추락방호망(낙하물방지망)", "안전난간", "수직보호망", "방호선반"], a: 0 },
+                { q: "철골 기둥 승강 시 사용하는 안전 설비는?", type: "choice", options: ["수직 구명줄 및 승강 트랩", "고소작업대", "사다리", "비계"], a: 0 },
+                { q: "철골 부재 용접 시 화재 예방을 위해 설치해야 하는 것은?", type: "choice", options: ["불티비산방지포", "소화기", "방화수", "화재감시자"], a: 0 },
+                { q: "철골 보 인양 전 지상에서 미리 설치해야 하는 것은?", type: "choice", options: ["안전대 부착설비", "안전난간", "작업발판", "승강설비"], a: 0 }
+            ]},
+            { 
+                id: 6, title: "6. 거푸집동바리", 
+                prompt: "construction site ceiling supported by many steel pipe props shoring photorealistic", seed: 606, color: "bg-amber-600", imgSrc: null,
+                questions: [
+                    { q: "동바리 설치 시 반드시 준수해야 할 문서는?", type: "choice", options: ["구조검토 된 조립도", "시방서", "작업지침서", "안전관리계획서"], a: 0 },
+                    { q: "강관 동바리 높이가 O.Om 초과 시 높이 2m 이내마다 수평연결재를 설치해야 한다. (소수점 포함)", type: "input", answer: "3.5" },
+                    { q: "동바리 하부 침하 방지를 위해 설치해야 하는 것은?", type: "choice", options: ["깔목 또는 깔판", "물 뿌리기", "모래 깔기", "그냥 설치"], a: 0 },
+                    { q: "상하부 동바리는 동일 OO선상에 위치해야 한다.", type: "choice", options: ["수직", "수평", "교차 방향", "지그재그"], a: 0 },
+                    { q: "콘크리트 타설 중 붕괴 징후 감시 대상은?", type: "choice", options: ["거푸집 및 동바리 변형", "콘크리트 타설 속도", "작업자 피로도", "장비 가동 상태"], a: 0 }
+                ]
+            },
+            { id: 7, title: "7. 이동식비계", 
+              prompt: "mobile rolling scaffold tower indoor construction site photorealistic", seed: 707, color: "bg-purple-500", imgSrc: null,
+              questions: [
+                { q: "이동식 비계 위 작업 시 바퀴 상태는?", type: "choice", options: ["브레이크(잠금장치) 고정", "바퀴 고임목 설치", "아웃트리거 설치", "평탄한 곳으로 이동"], a: 0 },
+                { q: "이동식 비계의 넘어짐 방지를 위한 지지대는?", type: "choice", options: ["아웃트리거", "가새", "벽이음", "버팀대"], a: 0 },
+                { q: "이동식 비계 최상부 작업 시 필수 설치물은?", type: "choice", options: ["안전난간", "의자", "파라솔", "깃발"], a: 0 },
+                { q: "작업자가 탄 채로 이동식 비계를 이동하는 것은?", type: "choice", options: ["절대 금지", "안전대 착용 시 가능", "평탄한 바닥 이동 시 가능", "관리자 감독 하에 가능"], a: 0 },
+                { q: "비계 승강 시 이용해야 하는 것은?", type: "choice", options: ["설치된 사다리", "비계 기둥", "교차 가새", "외부 비계"], a: 0 },
+                { q: "작업발판의 최대 적재하중은 OOOkg을 초과하지 않아야 한다. (숫자만 입력)", type: "input", answer: "250" },
+                { q: "이동식 비계 설치 높이는 밑변 최소폭의 O배 이내로 한다. (숫자만 입력)", type: "input", answer: "4" }
+            ]},
+            { id: 8, title: "8. 달비계", 
+              prompt: "construction worker painting high rise building exterior wall on hanging rope chair safety harness photorealistic", seed: 808, color: "bg-teal-500", imgSrc: null,
+              questions: [
+                { q: "달비계 작업 로프 외에 안전대를 체결해야 하는 별도의 줄은?", type: "choice", options: ["수직 구명줄", "보조 로프", "작업용 로프", "안전 난간"], a: 0 },
+                { q: "로프가 건물 모서리에 닿아 끊어지는 것을 막는 조치는?", type: "choice", options: ["마모방지 보호대 설치", "로프 2겹 사용", "고무판 설치", "테이핑 처리"], a: 0 },
+                { q: "작업 로프 고정 원칙은?", type: "choice", options: ["2개소 이상 견고한 고정점에 결속", "난간대에 튼튼하게 결속", "무거운 구조물에 결속", "작업자가 직접 지지"], a: 0 },
+                { q: "작업 의자 탑승 시 필수 보호구는?", type: "choice", options: ["안전대", "구명조끼", "안전화", "보안경"], a: 0 },
+                { q: "로프 상태 점검 시 폐기 기준은?", type: "choice", options: ["소선 절단 및 심한 손상", "오염된 로프", "습기를 머금은 로프", "색이 바랜 로프"], a: 0 }
+            ]},
+            { 
+                id: 9, title: "9. 굴착기", 
+                prompt: "yellow heavy construction excavator digging ground with bucket side view photorealistic", seed: 999, color: "bg-yellow-600", imgSrc: null,
+                questions: [
+                    { q: "굴착기 운전 전 퀵커플러의 OOO 체결 여부를 반드시 확인해야 한다.", type: "choice", options: ["안전핀", "고정볼트", "유압호스", "연결고리"], a: 0 },
+                    { q: "굴착기 후면에는 카메라와 OO방지봉을 2개 이상 설치해야 한다.", type: "choice", options: ["협착", "충돌", "전도", "낙하"], a: 0 },
+                    { q: "굴착기 후사경은 어떤 상태여야 하는가?", type: "choice", options: ["정상위치에 견고하게 설치", "운전자 시야에 맞게 조정", "깨끗하게 닦아서 사용", "보조 거울 부착"], a: 0 },
+                    { q: "작업반경 내 접근금지 표지를 어디에 부착해야 하는가?", type: "choice", options: ["후면 등 잘 보이는 곳", "운전석 내부", "버킷 측면", "유압 실린더"], a: 0 },
+                    { q: "굴착기로 화물을 인양하는 작업은?", type: "choice", options: ["원칙적 금지", "가능", "권장", "편리함"], a: 0 },
+                    { q: "운전석 이탈 시 버킷의 위치는?", type: "choice", options: ["지면에 내려놓음", "공중에 들어올림", "작업 위치에 고정", "측면으로 이동"], a: 0 },
+                    { q: "굴착기 작업 반경 내 충돌 방지 조치는?", type: "choice", options: ["유도자 배치 및 출입금지", "경광등 설치", "작업지휘자 배치", "접근금지 표지판 설치"], a: 0 }
+                ]
+            },
+            { 
+                id: 10, title: "10. 고소작업대", 
+                prompt: "orange scissor lift aerial work platform construction site photorealistic", seed: 1010, color: "bg-indigo-500", imgSrc: null,
+                questions: [
+                    { q: "고소작업대의 과상승방지장치는 작업대 상부 OOmm 이상의 높이에 설치해야 한다. (숫자만 입력)", type: "input", answer: "600" },
+                    { q: "고소작업대 과상승방지장치는 최소 O개소 이상 설치해야 한다. (숫자만 입력)", type: "input", answer: "2" },
+                    { q: "건설기계 조작에 따른 산업재해 방지 사항을 누구에게 주지시켜야 하는가?", type: "choice", options: ["조작하는 사람", "작업 지휘자", "현장 소장", "안전 관리자"], a: 0 },
+                    { q: "고소작업대 탑승 시 안전대 체결 위치는?", type: "choice", options: ["작업대 난간", "붐대", "차량 본체", "주변 구조물"], a: 0 },
+                    { q: "전도 방지를 위해 설치해야 하는 것은?", type: "choice", options: ["아웃트리거", "고임목", "안전콘", "바퀴 스토퍼"], a: 0 },
+                    { q: "작업대 난간을 밟고 올라가 작업하는 것은?", type: "choice", options: ["금지", "가능", "상황에 따라", "높이 부족 시"], a: 0 }, 
+                    { q: "작업 지면의 상태 조건은?", type: "choice", options: ["평평하고 단단함", "경사가 완만함", "습기가 없음", "장애물이 없음"], a: 0 }
+                ]
+            },
+            { id: 11, title: "11. 트럭", 
+              prompt: "dump truck rear view construction site earthwork photorealistic", seed: 1111, color: "bg-green-600", imgSrc: null,
+              questions: [
+                { q: "덤프트럭 후진 시 필요한 조치는?", type: "choice", options: ["유도자 배치", "후방카메라 확인", "경적 울리기", "비상등 점멸"], a: 0 },
+                { q: "적재함 위 작업 시 금지 사항은?", type: "choice", options: ["난간에 매달리거나 뛰어내림", "안전모 미착용", "적재함 내 이동", "휴식 취하기"], a: 0 },
+                { q: "경사지 주차 시 밀림 방지 조치는?", type: "choice", options: ["고임목 설치", "주차 브레이크 체결", "핸들 꺾어두기", "저단 기어 체결"], a: 0 },
+                { q: "적재함 정비 시 불시 하강 방지 장치는?", type: "choice", options: ["안전블록(안전지주)", "나무토막 고임", "유압 밸브 잠금", "크레인으로 지지"], a: 0 },
+                { q: "사내 차량 이동 통로와 보행자 통로는?", type: "choice", options: ["구분하여 설치", "혼용", "상관없음", "차량 우선"], a: 0 }
+            ]},
+            { 
+                id: 12, title: "12. 이동식크레인", 
+                prompt: "mobile crane truck lifting heavy steel beam construction site blue sky photorealistic", seed: 1212, color: "bg-yellow-700", imgSrc: null,
+                questions: [
+                    { q: "양중장비를 사용하는 사업장은 작업반경 밖에서 장비를 유도하는 OOO를 배치해야 한다.", type: "choice", options: ["신호수", "감시자", "경비원", "보조원"], a: 0 },
+                    { q: "신호수는 양중물을 목적된 장소로 안전하게 OO해야 한다.", type: "choice", options: ["유도", "운반", "적재", "고정"], a: 0 },
+                    { q: "크레인 작업 전 전도 방지를 위해 펼쳐야 하는 것은?", type: "choice", options: ["아웃트리거", "붐대", "카운터웨이트", "운전석"], a: 0 },
+                    { q: "인양 중 로프 이탈 방지 장치는?", type: "choice", options: ["훅 해지장치", "안전 걸쇠", "이탈 방지핀", "고정 클립"], a: 0 },
+                    { q: "인양물 아래로 사람이 통행하는 것은?", type: "choice", options: ["금지", "가능", "안전모 쓰면 가능", "뛰어서 가능"], a: 0 },
+                    { q: "전선 인근 작업 시 위험 요인은?", type: "choice", options: ["감전", "화재", "추락", "소음"], a: 0 },
+                    { q: "정격 하중 초과 인양은?", type: "choice", options: ["금지", "가능", "급할 때 가능", "운전수 재량"], a: 0 }
+                ]
+            },
+            { id: 13, title: "13. 굴착사면", 
+              prompt: "excavation slope soil trench construction danger photorealistic", seed: 1313, color: "bg-amber-700", imgSrc: null,
+              questions: [
+                { q: "굴착 사면 붕괴 방지를 위한 기본 원칙은?", type: "choice", options: ["적정 기울기 준수", "물 뿌리기", "비닐 제거", "돌 쌓기"], a: 0 },
+                { q: "우천 후 작업 전 점검 사항은?", type: "choice", options: ["사면 균열 및 변형", "먼지", "풀", "햇빛"], a: 0 },
+                { q: "굴착 상부 가장자리에 중량물 적재 시 위험은?", type: "choice", options: ["붕괴", "분실", "불편", "미관"], a: 0 },
+                { q: "붕괴 위험이 있는 급경사면에 설치하는 것은?", type: "choice", options: ["흙막이 지보공", "안전난간", "표지판", "천막"], a: 0 },
+                { q: "사면의 굴러떨어질 위험이 있는 돌(부석) 조치는?", type: "choice", options: ["사전 제거", "방치", "표시만", "피해서 작업"], a: 0 },
+                { q: "굴착면 기울기 기준: 모래는 1 : O.O (소수점 포함)", type: "input", answer: "1.8" }
+            ]},
+            { 
+                id: 14, title: "14. 흙막이지보공", 
+                prompt: "underground deep excavation site steel strut shoring system retaining wall construction photorealistic", seed: 1414, color: "bg-stone-600", imgSrc: null,
+                questions: [
+                    { q: "흙막이 설치 시 준수해야 할 기준은?", type: "choice", options: ["구조검토 된 조립도", "경험", "영상", "옆 현장"], a: 0 },
+                    { q: "띠장의 연결보강은 어디에 명시된 대로 시공해야 하는가?", type: "choice", options: ["도면", "구두지시", "작업자판단", "인터넷"], a: 0 },
+                    { q: "흙막이 볼트 여장은 너트면에서 돌출된 나사산이 O~6개의 범위여야 한다. (숫자만 입력)", type: "input", answer: "1" },
+                    { q: "흙막이 판은 굴착 후 어떻게 해야 하는가?", type: "choice", options: ["신속히 설치", "천천히 설치", "나중에 설치", "설치 안함"], a: 0 },
+                    { q: "인접 흙막이 판 사이에 OO가 발생하지 않도록 해야 한다.", type: "choice", options: ["틈새", "먼지", "소음", "진동"], a: 0 },
+                    { q: "변위나 토압 변화 감지를 위한 장치는?", type: "choice", options: ["계측기", "CCTV", "조명", "온도계"], a: 0 },
+                    { q: "흙막이 배면에 물이 찰 경우 조치는?", type: "choice", options: ["배수 조치", "물 채우기", "흙 채우기", "무시"], a: 0 },
+                    { q: "버팀보 위 이동 시 설치해야 하는 것은?", type: "choice", options: ["안전통로", "가설계단", "작업발판", "사다리"], a: 0 }
+                ]
+            },
+            { 
+                id: 15, title: "15. 타워크레인", 
+                prompt: "tall yellow tower crane construction site lifting concrete bucket blue sky photorealistic", seed: 1515, color: "bg-sky-600", imgSrc: null,
+                questions: [
+                    { q: "슬링벨트 폐기 기준: 봉제실이 절단되어 모양이 유지되지 않으면 어떻게 해야 하는가?", type: "choice", options: ["즉시 폐기", "보수 후 사용", "하중 줄여 사용", "비인가 작업에 사용"], a: 0 },
+                    { q: "벨트의 OO가 조금이라도 인지되면 즉시 폐기해야 한다.", type: "choice", options: ["박리", "오염", "변색", "마모"], a: 0 },
+                    { q: "운전수와 지상 작업자 간 소통을 위한 담당자는?", type: "choice", options: ["신호수", "작업반장", "무전기", "CCTV"], a: 0 },
+                    { q: "강풍 시 타워크레인 작업 기준은?", type: "choice", options: ["기준 풍속 초과 시 중지", "감속 운전", "낮은 높이 작업", "숙련자 운전"], a: 0 },
+                    { q: "인상(높이 올림) 작업 시 준수 사항은?", type: "choice", options: ["매뉴얼 준수 및 지휘자 배치", "경험 많은 작업자 배치", "신속한 작업 수행", "야간 작업 실시"], a: 0 },
+                    { q: "지지 벽체(월타이) 해체 시기는?", type: "choice", options: ["계획에 따라 순차적", "설치 역순으로", "하부부터 상부로", "필요 없는 것부터"], a: 0 }
+                ]
+            },
+            { id: 16, title: "16. 항타/항발기", 
+              prompt: "large pile driver machine hammering foundation piles construction site photorealistic", seed: 1616, color: "bg-zinc-600", imgSrc: null,
+              questions: [
+                { q: "조립, 이동 시 전도 방지 확인 사항은?", type: "choice", options: ["지반 지지력 및 평탄도", "장비 색상", "운전자", "날씨"], a: 0 },
+                { q: "작업 중 리더 전도 방지 조치는?", type: "choice", options: ["아웃트리거 및 받침대 보강", "카운터웨이트 증량", "붐대 각도 조정", "작업 반경 축소"], a: 0 },
+                { q: "권상용 와이어로프 안전계수 기준은?", type: "choice", options: ["5 이상", "3 이상", "7 이상", "10 이상"], a: 0 },
+                { q: "작업 반경 내 근로자 접근은?", type: "choice", options: ["금지", "관계자 외 출입금지", "안전장구 착용 시 허용", "주의해서 통행"], a: 0 },
+                { q: "이동 시 갓길 붕괴 방지 조치는?", type: "choice", options: ["철판(복공판) 또는 깔목", "자갈 포설", "모래 다짐", "콘크리트 타설"], a: 0 }
+            ]},
+            { id: 17, title: "17. 건설용리프트", 
+              prompt: "construction hoist elevator cage attached to building exterior photorealistic", seed: 1717, color: "bg-blue-700", imgSrc: null,
+              questions: [
+                { q: "운행 중 출입문 상태는?", type: "choice", options: ["닫혀 있어야 함", "열어둠", "반만 닫음", "상황 따라"], a: 0 },
+                { q: "탑승 시 적재 하중 기준은?", type: "choice", options: ["정격 하중 이내", "적재 정량", "최대 하중", "안전 하중"], a: 0 },
+                { q: "설치, 해체 시 필요한 조치는?", type: "choice", options: ["작업지휘자 배치", "안전관리자 배치", "신호수 배치", "경비원 배치"], a: 0 },
+                { q: "운반구 입구 낙하물 방지 시설은?", type: "choice", options: ["방호선반", "낙하물방지망", "안전난간", "접근금지울타리"], a: 0 },
+                { q: "충돌 방지 안전장치는?", type: "choice", options: ["권과방지장치", "과부하방지장치", "비상정지장치", "출입문 연동장치"], a: 0 }
+            ]},
+            { id: 18, title: "18. 용접장치", 
+              prompt: "welding work sparks flying fire extinguisher nearby construction site photorealistic", seed: 1818, color: "bg-red-600", imgSrc: null,
+              questions: [
+                { q: "불티 비산 화재 예방 조치는?", type: "choice", options: ["불티비산방지포 사용", "소화기 비치", "가연물 제거", "화재감시자 배치"], a: 0 },
+                { q: "작업 장소 주변 필수 비치물은?", type: "choice", options: ["소화기", "방화수", "모래", "불티방지포"], a: 0 },
+                { q: "가스 용접 역화 방지 장치는?", type: "choice", options: ["역화방지기", "압력조정기", "안전밸브", "차단밸브"], a: 0 },
+                { q: "밀폐 공간 용접 시 질식 예방 조치는?", type: "choice", options: ["환기", "송기마스크 착용", "산소농도 측정", "감시인 배치"], a: 0 },
+                { q: "교류아크용접기 감전 예방 장치는?", type: "choice", options: ["자동전격방지기", "누전차단기", "접지설비", "절연홀더"], a: 0 }
+            ]}
+        ];
+
+        // --- Game Logic ---
+        let progress = JSON.parse(localStorage.getItem('constructionGameProgress')) || {};
+        let currentChapter = null;
+        let currentMarkers = [];
+        let solvedCount = 0;
+        let loadedImages = 0;
+        const totalImages = chapters.length;
+
+        function init() {
+            preloadAllImages();
+            renderChapters();
+            updateTotalProgress();
+            loadHallOfFame();
+        }
+
+        // --- Image Preloading ---
+        function preloadAllImages() {
+            const statusDiv = document.getElementById('preload-status');
+            const countSpan = document.getElementById('preload-count');
+            
+            chapters.forEach(chap => {
+                const img = new Image();
+                const url = `https://pollinations.ai/p/${encodeURIComponent(chap.prompt)}?width=800&height=600&seed=${chap.seed}&nologo=true`;
+                
+                img.onload = () => {
+                    chap.finalImgSrc = url; 
+                    chap.isLoaded = true;
+                    loadedImages++;
+                    countSpan.innerText = loadedImages;
+                    
+                    if(loadedImages === totalImages) {
+                        setTimeout(() => {
+                            statusDiv.classList.add('opacity-0', 'h-0', 'py-0', 'overflow-hidden');
+                        }, 1000);
+                    }
+                };
+                img.onerror = () => {
+                    console.warn(`Failed to load image for chapter ${chap.id}`);
+                    loadedImages++;
+                    chap.finalImgSrc = url; // Keep url for retry
+                }
+                img.src = url;
+            });
+        }
+
+        // --- Render Chapters ---
+        function renderChapters() {
+            const grid = document.getElementById('chapter-grid');
+            grid.innerHTML = '';
+
+            chapters.forEach(chap => {
+                const isPassed = progress[chap.id]?.passed;
+                
+                const card = document.createElement('div');
+                card.className = `chapter-card bg-white rounded-xl shadow-sm p-4 cursor-pointer border-2 ${isPassed ? 'border-green-500 ring-2 ring-green-100' : 'border-transparent hover:border-blue-200'} flex flex-col items-center text-center`;
+                card.onclick = () => openGame(chap.id);
+
+                // Use preloaded URL or generate new
+                let imgUrl = chap.finalImgSrc; 
+                if (!imgUrl) imgUrl = `https://pollinations.ai/p/${encodeURIComponent(chap.prompt)}?width=800&height=600&seed=${chap.seed}&nologo=true`;
+
+                const thumbnailHtml = `<img src="${imgUrl}" alt="${chap.title}" class="chapter-thumbnail w-full h-36 rounded-lg object-cover shadow-md mb-3">`;
+
+                card.innerHTML = `
+                    <div class="mb-3 relative group w-full">
+                        ${thumbnailHtml}
+                        ${isPassed ? '<div class="absolute top-2 right-2 bg-green-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs border-2 border-white shadow-sm z-10"><i class="fas fa-check"></i></div>' : ''}
+                    </div>
+                    <h3 class="font-bold text-slate-700 leading-tight text-sm md:text-base mb-1 w-full truncate mt-2">${chap.title.split('. ')[1]}</h3>
+                    <div class="text-xs font-medium ${isPassed ? 'text-green-600' : 'text-slate-400'}">
+                        ${isPassed ? '통과 완료' : '도전하기'}
+                    </div>
+                `;
+                grid.appendChild(card);
+            });
+        }
+
+        function updateTotalProgress() {
+            const passedCount = Object.values(progress).filter(p => p.passed).length;
+            document.getElementById('total-progress').innerText = passedCount;
+            
+            if (passedCount === 18) {
+                document.getElementById('congrats-section').classList.remove('hidden');
+            }
+        }
+
+        // --- Hall of Fame ---
+        function showHallOfFame() {
+            const hall = document.getElementById('hall-of-fame');
+            hall.classList.remove('hidden');
+            hall.scrollIntoView({ behavior: 'smooth' });
+        }
+        function hideHallOfFame() {
+            document.getElementById('hall-of-fame').classList.add('hidden');
+        }
+
+
+        // --- Game Logic ---
+        function openGame(chapterId) {
+            currentChapter = chapters.find(c => c.id === chapterId);
+            if (!currentChapter) return;
+
+            solvedCount = 0;
+            currentMarkers = [];
+
+            // UI Reset
+            document.getElementById('game-title').innerText = currentChapter.title;
+            document.getElementById('game-progress-bar').style.width = '0%';
+            document.getElementById('game-progress-text').innerText = `0/${currentChapter.questions.length}`;
+            document.getElementById('chapter-complete').classList.add('hidden');
+            document.getElementById('question-card').classList.add('hidden');
+            document.getElementById('fail-modal').classList.add('hidden');
+            document.getElementById('scene-container').classList.remove('hidden');
+            
+            // Scene Image Setup
+            const bgEl = document.getElementById('scene-bg');
+            const loadingEl = document.getElementById('scene-loading');
+            
+            let imgUrl = currentChapter.finalImgSrc;
+            if (!imgUrl) imgUrl = `https://pollinations.ai/p/${encodeURIComponent(currentChapter.prompt)}?width=800&height=600&seed=${currentChapter.seed}&nologo=true`;
+
+            bgEl.style.backgroundImage = `url('${imgUrl}')`;
+            bgEl.classList.add('loaded');
+            loadingEl.classList.add('hidden');
+            
+            generateMarkers();
+
+            const modal = document.getElementById('game-screen');
+            modal.classList.remove('hidden');
+            document.body.classList.add('modal-active');
+        }
+
+        function closeGame() {
+            document.getElementById('game-screen').classList.add('hidden');
+            document.body.classList.remove('modal-active');
+            renderChapters();
+            updateTotalProgress();
+        }
+
+        // Seeded Random Generator
+        function mulberry32(a) {
+            return function() {
+                var t = a += 0x6D2B79F5;
+                t = Math.imul(t ^ t >>> 15, t | 1);
+                t ^= t + Math.imul(t ^ t >>> 7, t | 61);
+                return ((t ^ t >>> 14) >>> 0) / 4294967296;
+            }
+        }
+
+        function generateMarkers() {
+            const container = document.getElementById('marker-layer');
+            container.innerHTML = '';
+            
+            // Initialize seeded random generator for consistent positions per chapter
+            const rng = mulberry32(currentChapter.seed);
+            
+            const positions = [];
+            const markerSize = 50; // px
+            const containerWidth = container.offsetWidth;
+            const containerHeight = container.offsetHeight;
+            const safeMargin = 50; // Margin from edges
+
+            currentChapter.questions.forEach((q, index) => {
+                const marker = document.createElement('div');
+                marker.className = 'marker';
+                marker.innerText = '?';
+                marker.id = `marker-${index}`;
+                
+                let top, left, overlap;
+                let attempts = 0;
+                
+                // Collision Detection Loop
+                do {
+                    overlap = false;
+                    // Generate random pos within safe zone (10%~90%)
+                    top = 10 + rng() * 80;
+                    left = 10 + rng() * 80;
+
+                    // Check distance against existing markers
+                    // Approximate distance check using % converted to relative pixels is tricky without exact container size
+                    // Simplified check: just ensure % difference is significant (>10%)
+                    for (let pos of positions) {
+                        const dist = Math.sqrt(Math.pow(top - pos.t, 2) + Math.pow(left - pos.l, 2));
+                        if (dist < 12) { // Min distance threshold in %
+                            overlap = true;
+                            break;
+                        }
+                    }
+                    attempts++;
+                } while (overlap && attempts < 50);
+
+                positions.push({t: top, l: left});
+
+                marker.style.top = `${top}%`;
+                marker.style.left = `${left}%`;
+                marker.style.animationDelay = `${index * 0.1}s`;
+                
+                marker.onclick = () => showQuestion(index);
+                container.appendChild(marker);
+            });
+        }
+
+        function showQuestion(index) {
+            const qData = currentChapter.questions[index];
+            const marker = document.getElementById(`marker-${index}`);
+            if (marker.classList.contains('solved')) return;
+
+            document.getElementById('scene-container').classList.add('hidden');
+            const qCard = document.getElementById('question-card');
+            qCard.classList.remove('hidden');
+            
+            document.getElementById('q-num').innerText = index + 1;
+            document.getElementById('q-text').innerText = qData.q;
+            
+            const contentDiv = document.getElementById('q-content');
+            contentDiv.innerHTML = '';
+            document.getElementById('q-feedback').classList.add('hidden');
+
+            if (qData.type === 'input') {
+                contentDiv.innerHTML = `
+                    <div class="flex gap-2">
+                        <input type="text" id="answer-input" class="flex-1 bg-slate-100 border border-slate-300 text-slate-800 p-3 rounded-lg text-center font-bold focus:outline-none focus:border-blue-500" placeholder="정답 입력 (숫자)">
+                        <button id="submit-btn" class="bg-blue-600 hover:bg-blue-500 text-white px-6 rounded-lg font-bold transition">확인</button>
+                    </div>
+                `;
+                const btn = contentDiv.querySelector('#submit-btn');
+                const input = contentDiv.querySelector('#answer-input');
+                btn.onclick = () => checkAnswer(index, input.value);
+                input.onkeypress = (e) => { if(e.key === 'Enter') btn.click(); };
+                setTimeout(() => input.focus(), 100);
+            } else {
+                const shuffledOptions = [...qData.options];
+                const correctText = qData.options[qData.a];
+                // Seeded shuffle if desired, or simple random
+                shuffledOptions.sort(() => Math.random() - 0.5);
+
+                shuffledOptions.forEach((opt) => {
+                    const btn = document.createElement('button');
+                    btn.className = "w-full text-left p-4 rounded-lg bg-slate-100 border border-slate-200 text-slate-700 hover:bg-blue-600 hover:text-white hover:border-blue-500 transition mb-2 font-medium";
+                    btn.innerText = opt;
+                    btn.onclick = () => checkAnswer(index, opt, correctText);
+                    contentDiv.appendChild(btn);
+                });
+            }
+        }
+
+        function hideQuestion() {
+            document.getElementById('question-card').classList.add('hidden');
+            document.getElementById('scene-container').classList.remove('hidden');
+        }
+
+        function checkAnswer(qIndex, userAnswer, correctAnswerText) {
+            const qData = currentChapter.questions[qIndex];
+            const feedback = document.getElementById('q-feedback');
+            let isCorrect = false;
+
+            if (qData.type === 'input') {
+                if (String(userAnswer).trim() === String(qData.answer)) isCorrect = true;
+            } else {
+                if (userAnswer === correctAnswerText) isCorrect = true;
+            }
+
+            if (isCorrect) {
+                feedback.innerHTML = '<i class="fas fa-check-circle mr-2"></i>정답입니다!';
+                feedback.className = "mt-4 p-4 rounded-lg bg-green-100 text-green-700 border border-green-200 font-bold flex items-center justify-center";
+                feedback.classList.remove('hidden');
+                
+                const marker = document.getElementById(`marker-${qIndex}`);
+                marker.classList.add('solved');
+                marker.innerHTML = '<i class="fas fa-check"></i>';
+                
+                solvedCount++;
+                const totalQ = currentChapter.questions.length;
+                document.getElementById('game-progress-bar').style.width = `${(solvedCount / totalQ) * 100}%`;
+                document.getElementById('game-progress-text').innerText = `${solvedCount}/${totalQ}`;
+                
+                setTimeout(() => {
+                    document.getElementById('question-card').classList.add('hidden');
+                    if (solvedCount === totalQ) {
+                         saveProgress(currentChapter.id);
+                         document.getElementById('scene-container').classList.add('hidden');
+                         document.getElementById('chapter-complete').classList.remove('hidden');
+                    } else {
+                         document.getElementById('scene-container').classList.remove('hidden');
+                    }
+                }, 1000);
+            } else {
+                document.getElementById('question-card').classList.add('hidden');
+                const failModal = document.getElementById('fail-modal');
+                failModal.classList.remove('hidden');
+                failModal.querySelector('div').classList.add('shake');
+            }
+        }
+
+        function saveProgress(chapterId) {
+            progress[chapterId] = { passed: true };
+            localStorage.setItem('constructionGameProgress', JSON.stringify(progress));
+            updateTotalProgress();
+        }
+
+        function loadHallOfFame() {
+            const list = JSON.parse(localStorage.getItem('constructionHallOfFame')) || [];
+            const container = document.getElementById('fame-list');
+            if (list.length === 0) {
+                container.innerHTML = '<div class="p-6 text-center text-slate-400 text-sm italic">아직 등록된 마스터가 없습니다.<br>첫 번째 주인공이 되어보세요!</div>';
+                return;
+            }
+            container.innerHTML = list.map((entry, idx) => `
+                <div class="flex justify-between items-center p-3 hover:bg-slate-50 transition border-b border-slate-100 last:border-0">
+                    <div class="flex items-center">
+                        <div class="w-6 h-6 rounded-full bg-yellow-100 flex items-center justify-center text-yellow-600 font-bold text-xs mr-3">${idx + 1}</div>
+                        <span class="font-bold text-slate-700">${entry.name}</span>
+                    </div>
+                    <span class="text-xs text-slate-400 font-mono">${entry.date}</span>
+                </div>
+            `).join('');
+        }
+
+        function saveToHallOfFame() {
+            const nameInput = document.getElementById('user-name');
+            const name = nameInput.value.trim();
+            if (!name) { alert("이름을 입력해주세요."); return; }
+            
+            const list = JSON.parse(localStorage.getItem('constructionHallOfFame')) || [];
+            const date = new Date().toLocaleDateString();
+            list.unshift({ name, date });
+            localStorage.setItem('constructionHallOfFame', JSON.stringify(list));
+            
+            loadHallOfFame();
+            nameInput.value = '';
+            alert("명예의 전당에 등록되었습니다!");
+        }
+
+        function showHallOfFame() {
+            const hall = document.getElementById('hall-of-fame');
+            hall.classList.remove('hidden');
+            hall.scrollIntoView({ behavior: 'smooth' });
+        }
+        
+        function hideHallOfFame() {
+            document.getElementById('hall-of-fame').classList.add('hidden');
+        }
+
+        init();
+    </script>
+</body>
+</html>
